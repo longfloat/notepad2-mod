@@ -89,9 +89,7 @@
 #endif
 
 #include <commctrl.h>
-#ifndef __DMC__
 #include <zmouse.h>
-#endif
 #include <ole2.h>
 
 #ifndef MK_ALT
@@ -217,8 +215,10 @@ class ScintillaWin :
 
 	virtual void Initialise();
 	virtual void Finalise();
+#if defined(USE_D2D)
 	void EnsureRenderTarget();
 	void DropRenderTarget();
+#endif
 	HWND MainHWND();
 
 	static sptr_t DirectFunction(
@@ -404,15 +404,18 @@ void ScintillaWin::Finalise() {
 	ScintillaBase::Finalise();
 	SetTicking(false);
 	SetIdle(false);
+#if defined(USE_D2D)
 	DropRenderTarget();
+#endif
 	::RevokeDragDrop(MainHWND());
 	if (SUCCEEDED(hrOle)) {
 		::OleUninitialize();
 	}
 }
 
-void ScintillaWin::EnsureRenderTarget() {
 #if defined(USE_D2D)
+
+void ScintillaWin::EnsureRenderTarget() {
 	if (!renderTargetValid) {
 		DropRenderTarget();
 		renderTargetValid = true;
@@ -454,17 +457,16 @@ void ScintillaWin::EnsureRenderTarget() {
 		// need to be recreated.
 		DropGraphics(false);
 	}
-#endif
 }
 
 void ScintillaWin::DropRenderTarget() {
-#if defined(USE_D2D)
 	if (pRenderTarget) {
 		pRenderTarget->Release();
 		pRenderTarget = 0;
 	}
-#endif
 }
+
+#endif
 
 HWND ScintillaWin::MainHWND() {
 	return reinterpret_cast<HWND>(wMain.GetID());
@@ -630,10 +632,6 @@ LRESULT ScintillaWin::WndPaint(uptr_t wParam) {
 }
 
 sptr_t ScintillaWin::HandleComposition(uptr_t wParam, sptr_t lParam) {
-#ifdef __DMC__
-	// Digital Mars compiler does not include Imm library
-	return 0;
-#else
 	if (lParam & GCS_RESULTSTR) {
 		HIMC hIMC = ::ImmGetContext(MainHWND());
 		if (hIMC) {
@@ -668,7 +666,6 @@ sptr_t ScintillaWin::HandleComposition(uptr_t wParam, sptr_t lParam) {
 		return 0;
 	}
 	return ::DefWindowProc(MainHWND(), WM_IME_COMPOSITION, wParam, lParam);
-#endif
 }
 
 // Translate message IDs from WM_* and EM_* to SCI_* so can partly emulate Windows Edit control
@@ -871,13 +868,10 @@ sptr_t ScintillaWin::WndProc(unsigned int iMessage, uptr_t wParam, sptr_t lParam
 			return ::DefWindowProc(MainHWND(), iMessage, wParam, lParam);
 
 		case WM_LBUTTONDOWN: {
-#ifndef __DMC__
-			// Digital Mars compiler does not include Imm library
 			// For IME, set the composition string as the result string.
 			HIMC hIMC = ::ImmGetContext(MainHWND());
 			::ImmNotifyIME(hIMC, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
 			::ImmReleaseContext(MainHWND(), hIMC);
-#endif
 			//
 			//Platform::DebugPrintf("Buttdown %d %x %x %x %x %x\n",iMessage, wParam, lParam,
 			//	Platform::IsKeyDown(VK_SHIFT),
@@ -2172,8 +2166,6 @@ DropTarget::DropTarget() {
  * Called when IME Window opened.
  */
 void ScintillaWin::ImeStartComposition() {
-#ifndef __DMC__
-	// Digital Mars compiler does not include Imm library
 	if (caret.active) {
 		// Move IME Window to current caret position
 		HIMC hIMC = ::ImmGetContext(MainHWND());
@@ -2214,7 +2206,6 @@ void ScintillaWin::ImeStartComposition() {
 		// Caret is displayed in IME window. So, caret in Scintilla is useless.
 		DropCaret();
 	}
-#endif
 }
 
 /** Called when IME Window closed. */
@@ -2613,7 +2604,7 @@ STDMETHODIMP ScintillaWin::Drop(LPDATAOBJECT pIDataSource, DWORD grfKeyState,
 			data.assign(convertedText.c_str(), convertedText.c_str()+convertedText.length()+1);
 		}
 
-		if (data.empty()) {
+		if (!SUCCEEDED(hr) || data.empty()) {
 			//Platform::DebugPrintf("Bad data format: 0x%x\n", hres);
 			return hr;
 		}
@@ -2832,7 +2823,12 @@ sptr_t PASCAL ScintillaWin::CTWndProc(
 						drtp.usage = D2D1_RENDER_TARGET_USAGE_NONE;
 						drtp.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
 
-						pD2DFactory->CreateHwndRenderTarget(drtp, dhrtp, &pCTRenderTarget);
+						if (!SUCCEEDED(pD2DFactory->CreateHwndRenderTarget(drtp, dhrtp, &pCTRenderTarget))) {
+							surfaceWindow->Release();
+							delete surfaceWindow;
+							::EndPaint(hWnd, &ps);
+							return 0;
+						}
 						surfaceWindow->Init(pCTRenderTarget, hWnd);
 						pCTRenderTarget->BeginDraw();
 #endif

@@ -68,6 +68,10 @@ $(SCI_LIB_OBJDIR)\Accessor.obj: \
     $(SCI_LIB)\WordList.h \
     $(SCI_LIB)\LexAccessor.h
 
+$(SCI_LIB_OBJDIR)\CharacterCategory.obj: \
+    $(SCI_LIB)\CharacterCategory.cxx \
+    $(SCI_LIB)\CharacterCategory.h
+
 $(SCI_LIB_OBJDIR)\CharacterSet.obj: \
     $(SCI_LIB)\CharacterSet.cxx \
     $(SCI_LIB)\CharacterSet.h

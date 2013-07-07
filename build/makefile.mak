@@ -150,6 +150,7 @@ SCI_LEX_OBJ = \
 
 SCI_LIB_OBJ = \
     $(SCI_LIB_OBJDIR)\Accessor.obj \
+    $(SCI_LIB_OBJDIR)\CharacterCategory.obj \
     $(SCI_LIB_OBJDIR)\CharacterSet.obj \
     $(SCI_LIB_OBJDIR)\LexerBase.obj \
     $(SCI_LIB_OBJDIR)\LexerModule.obj \
